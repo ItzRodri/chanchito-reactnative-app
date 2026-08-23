@@ -1,18 +1,18 @@
 {
   "expo": {
-    "name": "chanchito-reactnative-app",
-    "slug": "chanchito-reactnative-app",
+    "name": "Chanchito",
+    "slug": "chanchito",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "chanchitoreactnativeapp",
-    "userInterfaceStyle": "automatic",
+    "scheme": "chanchito",
+    "userInterfaceStyle": "light",
     "ios": {
       "icon": "./assets/expo.icon"
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FFF3EC",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
@@ -28,15 +28,27 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#FFF3EC",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
         }
-      ]
+      ],
+      [
+        "expo-status-bar",
+        {
+          "style": "dark"
+        }
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "backgroundColor": "#FFF3EC",
+    "androidNavigationBar": {
+      "backgroundColor": "#241713",
+      "barStyle": "light-content"
     }
   }
 }

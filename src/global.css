@@ -1,9 +1,64 @@
-:root {
-  --font-display:
-    Spline Sans, Inter, ui-sans-serif, system-ui, sans-serif, Apple Color Emoji, Segoe UI Emoji,
-    Segoe UI Symbol, Noto Color Emoji;
-  --font-mono:
-    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, Courier New, monospace;
-  --font-rounded: 'SF Pro Rounded', 'Hiragino Maru Gothic ProN', Meiryo, 'MS PGothic', sans-serif;
-  --font-serif: Georgia, 'Times New Roman', serif;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
+@import "tailwindcss/utilities.css";
+
+@import "nativewind/theme";
+
+/* ------------------------------------------------------------------
+   Design tokens de Chanchito.
+   Extraídos 1:1 del mockup HTML (Chanchito App - standalone.html).
+   ------------------------------------------------------------------ */
+@theme {
+  /* superficies */
+  --color-cream: #fff3ec;
+  --color-paper: #ffffff;
+  --color-ink: #241713;
+
+  /* rosa (marca) */
+  --color-pink: #ff6fa4;
+  --color-pink-soft: #ffa6c4;
+  --color-pink-deep: #d6427e;
+  --color-pink-tint: #fff0f6;
+
+  /* verde (éxito / ganancia) */
+  --color-mint: #3ecf8e;
+  --color-mint-tint: #eafaf2;
+  --color-mint-ink: #1a5c40;
+  --color-mint-ink-soft: #6a8a7c;
+
+  /* naranja (alerta / salida) */
+  --color-coral: #ff7a59;
+  --color-coral-tint: #fff3ee;
+
+  /* acentos */
+  --color-sun: #ffd84d;
+  --color-sky: #7fc4ff;
+
+  /* neutros cálidos */
+  --color-clay: #b08b7e;
+  --color-cocoa: #8a6f64;
+  --color-bark: #4a3a37;
+  --color-sand: #f0e2d8;
+  --color-sand-deep: #e2c9bd;
+  --color-dust: #c7b6ad;
+  --color-tab-idle: #8a746c;
+
+  /* tipografías: en RN cada peso es una familia propia */
+  --font-display: Baloo2_800ExtraBold;
+  --font-display-bold: Baloo2_700Bold;
+  --font-display-semi: Baloo2_600SemiBold;
+  --font-display-medium: Baloo2_500Medium;
+  --font-body: Inter_500Medium;
+  --font-body-semi: Inter_600SemiBold;
+  --font-body-bold: Inter_700Bold;
+  --font-body-black: Inter_800ExtraBold;
+
+  /* sombra dura estilo neo-brutalista */
+  --shadow-hard-xs: 3px 3px 0 #241713;
+  --shadow-hard-sm: 3px 4px 0 #241713;
+  --shadow-hard: 4px 5px 0 #241713;
+  --shadow-hard-lg: 5px 6px 0 #241713;
+  --shadow-hard-ink-soft: 4px 5px 0 #b08b7e;
+  --shadow-hard-coral: 4px 5px 0 #ff7a59;
+  --shadow-hard-pink: 3px 4px 0 #ff6fa4;
 }
