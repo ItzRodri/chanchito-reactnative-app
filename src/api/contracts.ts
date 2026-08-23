@@ -277,7 +277,9 @@ export { hasContracts };
 
 /* --------------------------------- escritura ------------------------------ */
 
-import { getSigningClient } from './signer';
+import { encodeFunctionData } from 'viem';
+
+import { sendGasless, type WdkTx } from './wdk';
 import type { PoolDraft } from '@/store/draft';
 import { usdtFromWhole } from '@/lib/money';
 
@@ -287,57 +289,44 @@ export type ChainWrite<T> = { txHash: `0x${string}`; result: T };
 const DAY = 86_400n;
 
 /**
- * Depositar son DOS transacciones, no una.
+ * Depositar en un chanchito: UNA sola operación, sin gas.
  *
- * Primero hay que autorizar al chanchito a mover tu USDT (`approve`), y recién
- * después depositar (`join`). Es cómo funcionan los tokens ERC-20: el contrato
- * no puede tomar fondos de tu cuenta sin permiso explícito.
+ * Con ERC-20 hacen falta dos pasos —autorizar el gasto del token y después
+ * depositar— y antes eran dos transacciones separadas, con su espera en el
+ * medio y dos firmas del usuario.
  *
- * El `approve` se saltea si ya hay autorización suficiente de antes, así que
- * el segundo depósito en el mismo chanchito es una sola firma.
- *
- * (Con el paymaster de EIP-7702 las dos irían en una sola operación firmada.
- * Mientras no exista, van separadas.)
+ * EIP-7702 permite agruparlas: se firma una vez, se ve una sola operación, y
+ * el paymaster cubre el gas cobrando la comisión en el mismo USD₮ que la
+ * persona está ahorrando. Nunca necesita tener ETH.
  */
 export async function depositToPool({
   poolId,
   amount,
   account,
-  onProgress,
 }: {
   poolId: string;
   amount: Usdt;
   account: `0x${string}`;
-  onProgress?: (step: string) => void;
 }): Promise<ChainWrite<{ poolId: string; amount: Usdt }>> {
   const pool = poolId as `0x${string}`;
-  const wallet = await getSigningClient(account);
+  const calls: WdkTx[] = [];
 
+  // Sólo se autoriza si hace falta: el segundo depósito en el mismo chanchito
+  // ya tiene permiso y ahorra una llamada.
   const allowance = await fetchAllowance(account, pool);
   if (allowance < amount) {
-    onProgress?.('Autorizando el gasto (1 de 2)');
-    const approveHash = await wallet.writeContract({
-      address: USDT_ADDRESS,
-      abi: erc20Abi,
-      functionName: 'approve',
-      args: [pool, amount],
-      chain: null,
-      account: wallet.account!,
+    calls.push({
+      to: USDT_ADDRESS,
+      data: encodeFunctionData({ abi: erc20Abi, functionName: 'approve', args: [pool, amount] }),
     });
-    // Hay que esperar: `join` falla si la autorización todavía no se incluyó.
-    await publicClient.waitForTransactionReceipt({ hash: approveHash });
   }
 
-  onProgress?.('Depositando (2 de 2)');
-  const txHash = await wallet.writeContract({
-    address: pool,
-    abi: poolVaultAbi,
-    functionName: 'join',
-    args: [amount],
-    chain: null,
-    account: wallet.account!,
+  calls.push({
+    to: pool,
+    data: encodeFunctionData({ abi: poolVaultAbi, functionName: 'join', args: [amount] }),
   });
 
+  const txHash = await sendGasless(calls);
   return { txHash, result: { poolId, amount } };
 }
 
@@ -346,8 +335,6 @@ export async function createPoolOnChain(
   account: `0x${string}`,
   code: string,
 ): Promise<ChainWrite<{ id: string }>> {
-  const wallet = await getSigningClient(account);
-
   // El plazo se cuenta desde la hora de la cadena, no la del teléfono: si el
   // reloj local está atrasado, el contrato rechaza el chanchito.
   const now = (await publicClient.getBlock()).timestamp;
@@ -355,25 +342,25 @@ export async function createPoolOnChain(
 
   const codeHex = draft.vis === 'private' ? asciiToBytes6(code) : '0x000000000000';
 
-  const txHash = await wallet.writeContract({
-    address: requireFactory(),
-    abi: poolFactoryAbi,
-    functionName: 'createPool',
-    args: [
-      {
-        name: draft.name.trim(),
-        minDeposit: usdtFromWhole(draft.minWhole),
-        maxDeposit: usdtFromWhole(draft.maxWhole),
-        capacity: draft.capacity,
-        joinDeadline,
-        // El plazo se cuenta desde que se llena, no desde ahora.
-        duration: BigInt(draft.durationMonths) * 30n * DAY,
-        isPrivate: draft.vis === 'private',
-        code: codeHex as `0x${string}`,
-      },
-    ],
-    chain: null,
-    account: wallet.account!,
+  const txHash = await sendGasless({
+    to: requireFactory(),
+    data: encodeFunctionData({
+      abi: poolFactoryAbi,
+      functionName: 'createPool',
+      args: [
+        {
+          name: draft.name.trim(),
+          minDeposit: usdtFromWhole(draft.minWhole),
+          maxDeposit: usdtFromWhole(draft.maxWhole),
+          capacity: draft.capacity,
+          joinDeadline,
+          // El plazo se cuenta desde que se llena, no desde ahora.
+          duration: BigInt(draft.durationMonths) * 30n * DAY,
+          isPrivate: draft.vis === 'private',
+          code: codeHex as `0x${string}`,
+        },
+      ],
+    }),
   });
 
   // La dirección del chanchito nuevo se conoce recién cuando se confirma;
@@ -393,13 +380,9 @@ export async function exitPoolEarly(
   poolId: string,
   account: `0x${string}`,
 ): Promise<ChainWrite<{ id: string }>> {
-  const wallet = await getSigningClient(account);
-  const txHash = await wallet.writeContract({
-    address: poolId as `0x${string}`,
-    abi: poolVaultAbi,
-    functionName: 'exitEarly',
-    chain: null,
-    account: wallet.account!,
+  const txHash = await sendGasless({
+    to: poolId as `0x${string}`,
+    data: encodeFunctionData({ abi: poolVaultAbi, functionName: 'exitEarly' }),
   });
   return { txHash, result: { id: poolId } };
 }
@@ -409,13 +392,9 @@ export async function closePoolOnChain(
   poolId: string,
   account: `0x${string}`,
 ): Promise<ChainWrite<{ id: string }>> {
-  const wallet = await getSigningClient(account);
-  const txHash = await wallet.writeContract({
-    address: poolId as `0x${string}`,
-    abi: poolVaultAbi,
-    functionName: 'forceCloseForDemo',
-    chain: null,
-    account: wallet.account!,
+  const txHash = await sendGasless({
+    to: poolId as `0x${string}`,
+    data: encodeFunctionData({ abi: poolVaultAbi, functionName: 'forceCloseForDemo' }),
   });
   return { txHash, result: { id: poolId } };
 }
@@ -444,15 +423,9 @@ export async function sendUsdt({
   amount: Usdt;
   account: `0x${string}`;
 }): Promise<ChainWrite<{ to: string; amount: Usdt }>> {
-  const wallet = await getSigningClient(account);
-
-  const txHash = await wallet.writeContract({
-    address: USDT_ADDRESS,
-    abi: erc20Abi,
-    functionName: 'transfer',
-    args: [to, amount],
-    chain: null,
-    account: wallet.account!,
+  const txHash = await sendGasless({
+    to: USDT_ADDRESS,
+    data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [to, amount] }),
   });
 
   return { txHash, result: { to, amount } };

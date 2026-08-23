@@ -2,7 +2,9 @@ import { hexToString, stringToHex } from 'viem';
 
 import { socialRegistryAbi } from './abi';
 import { SOCIAL_REGISTRY_ADDRESS, hasSocialRegistry, publicClient } from '@/lib/chain';
-import { getSigningClient } from './signer';
+import { encodeFunctionData } from 'viem';
+
+import { sendGasless } from './wdk';
 import type { ChainWrite } from './contracts';
 
 /**
@@ -119,19 +121,19 @@ export async function filterFriends(
 
 /* -------------------------------- escritura ------------------------------- */
 
+/** Toda escritura social va sin gas, igual que las de los chanchitos. */
 async function write(
-  account: `0x${string}`,
+  _account: `0x${string}`,
   functionName: string,
   args: readonly unknown[],
 ): Promise<ChainWrite<null>> {
-  const wallet = await getSigningClient(account);
-  const txHash = await wallet.writeContract({
-    address: registry(),
-    abi: socialRegistryAbi,
-    functionName: functionName as never,
-    args: args as never,
-    chain: null,
-    account: wallet.account!,
+  const txHash = await sendGasless({
+    to: registry(),
+    data: encodeFunctionData({
+      abi: socialRegistryAbi,
+      functionName: functionName as never,
+      args: args as never,
+    }),
   });
   return { txHash, result: null };
 }

@@ -55,9 +55,12 @@ export default function JoinCodeScreen() {
           autoCapitalize="characters"
           autoCorrect={false}
           maxLength={6}
-          className={`mt-2.5 w-full rounded-[18px] border-[3px] bg-paper p-4 text-center font-display text-[26px] tracking-[7px] text-pink-deep shadow-hard ${
+          className={`mt-2.5 w-full rounded-[18px] border-[3px] bg-paper p-4 font-display text-[26px] text-pink-deep shadow-hard ${
             error ? 'border-coral' : 'border-ink'
           }`}
+          // El espaciado de letras va por estilo directo: la utilidad
+          // `tracking-[Npx]` rompe el render de TextInput en esta versión.
+          style={{ letterSpacing: 7, textAlign: 'center' }}
         />
 
         {error && (

@@ -81,8 +81,14 @@ export default function ConnectScreen() {
         Se genera en tu teléfono y se guarda cifrada
       </Text>
 
-      {/* Quien ya usa cripto: que conecte la suya. */}
-      {hasWalletConnect && (
+      {/*
+        WalletConnect queda fuera por ahora.
+        La capa de firma de la app es WDK, que trabaja a partir de la frase
+        semilla para poder agrupar operaciones y pagar el gas en USD₮. Una
+        wallet externa nunca entrega su frase, así que no puede usar ese
+        camino: mostrar el botón llevaría a un error al primer depósito.
+      */}
+      {false && hasWalletConnect && (
         <>
           <View className="my-4 flex-row items-center gap-2.5">
             <View className="h-0.5 flex-1 bg-sand-deep" />

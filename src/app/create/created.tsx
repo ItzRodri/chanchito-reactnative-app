@@ -112,7 +112,10 @@ export default function CreatedScreen() {
 
               <InviteQr code={code} />
 
-              <Text className="mt-3 font-display text-[22px] tracking-[4px] text-pink-deep">
+              <Text
+                className="mt-3 font-display text-[22px] text-pink-deep"
+                style={{ letterSpacing: 4 }}
+              >
                 {code}
               </Text>
               <Text className="font-body-semi text-[10px] text-clay">código de invitación</Text>

@@ -1,75 +1,141 @@
 # Chanchito
 
-App de ahorro grupal en cripto. Port completo a React Native del prototipo
-`Chanchito App - standalone.html`: los 18 flujos, la mascota y la identidad
-visual (Baloo 2 + Inter, borde tinta y sombra dura).
+Ahorro grupal en USD₮. Un grupo de amigos pone plata para una meta común, el
+ahorro genera rendimiento mientras esperan, y al cumplirse cada uno retira su
+parte más la ganancia.
 
-## Stack
+**Nadie necesita tener ETH.** La comisión de red se paga en el mismo USD₮ que
+se está ahorrando, con el módulo gasless de WDK.
 
-| Pieza | Elección | Por qué |
-| --- | --- | --- |
-| Framework | Expo SDK 57 · RN 0.86 · expo-router | Ya venía en el proyecto |
-| Estilos | **NativeWind v5 (preview) + Tailwind v4** | Es la única línea de NativeWind compatible con RN 0.86 / React 19. v4 estable depende de `react-native-css-interop`, que no soporta esta versión de RN |
-| Datos de servidor | **TanStack Query v5** | Cache, `isPending`, invalidación por mutación |
-| Estado de cliente | **Zustand** | Ver abajo |
-| SVG | react-native-svg | Mascota + QR + íconos de tabs |
-| Fuentes | `@expo-google-fonts/baloo-2`, `@expo-google-fonts/inter` | Las mismas del mockup |
+---
 
-### Por qué Zustand y no Context
+## Por qué usamos WDK gasless
 
-Context sirve para un valor que casi no cambia (tema, sesión). Acá hay estado
-que cambia seguido y se lee desde muchas pantallas: los filtros de búsqueda, el
-borrador de creación, los flags de demo. Con Context, cada cambio re-renderiza
-todo el árbol debajo del provider; con Zustand cada componente se suscribe sólo
-al slice que usa (`useSessionStore(s => s.demoAccel)`) y el resto no se entera.
-Además no hace falta envolver la app en más providers.
+No es una optimización de costos: **es la diferencia entre tener producto y no
+tenerlo.**
 
-La regla que sigue el proyecto:
+Chanchito apunta a alguien que nunca usó cripto. Esa persona abre la app, se le
+crea una wallet, recibe USD₮ de un amigo… y no puede depositar, porque le falta
+un segundo activo que no entiende y que tiene que ir a comprar a otro lado. Ahí
+se termina el recorrido.
 
-- **TanStack Query** → todo lo que vendría de una API: chanchitos, participaciones,
-  amigos, solicitudes, notificaciones, stats del perfil.
-- **Zustand** → estado que es sólo del cliente: sesión/wallet, onboarding, avatar,
-  filtros de búsqueda, formulario de creación, flags de demo.
-- **useState** → estado de una sola pantalla (el acordeón de "En curso", el
-  slider de monto, el checkbox de salida).
+Con `@tetherto/wdk-wallet-evm-7702-gasless`:
 
-## Estructura
+- La comisión se paga en **USD₮**, no en ETH.
+- `approve` + `join` viajan como **una sola operación** (EIP-7702), así que se
+  firma una vez en vez de dos.
+- La dirección **no cambia**: 7702 delega una cuenta existente en vez de crear
+  una nueva.
+
+Verificado en Sepolia: después de depositar, el saldo de ETH de la cuenta quedó
+**idéntico**. Ver [POR-QUE-GASLESS.md](./POR-QUE-GASLESS.md) para el análisis
+completo, incluida la economía real (qué cuesta, quién lo paga, y por qué esto
+pertenece a una L2).
+
+## Dónde está la integración de WDK
+
+| Qué | Archivo |
+| --- | --- |
+| **Capa de firma sobre WDK** | [`src/api/wdk.ts`](src/api/wdk.ts) |
+| Depósito gasless batcheado (`approve` + `join` en una operación) | [`src/api/contracts.ts`](src/api/contracts.ts) → `depositToPool` |
+| Crear, salir, cerrar y enviar, todo por WDK | [`src/api/contracts.ts`](src/api/contracts.ts) |
+| Registro social (nombre, amigos) por WDK | [`src/api/social.ts`](src/api/social.ts) → `write` |
+| Cotización de la comisión en USD₮ antes de firmar | [`src/api/use-gas-quote.ts`](src/api/use-gas-quote.ts) |
+| Resolución de `sodium-native` → `sodium-javascript` para React Native | [`metro.config.js`](metro.config.js) |
+
+**WDK reemplazó la capa de firma, no se sumó al lado.** El firmante anterior
+(viem `WalletClient`) fue eliminado del proyecto: no quedó código muerto ni un
+camino paralelo. Todas las escrituras de la app pasan por `sendGasless`.
+
+### Paquetes de WDK instalados
+
+```
+@tetherto/wdk-wallet-evm-7702-gasless   1.0.0-beta.4
+```
+
+Arrastra `@tetherto/wdk-wallet`, `@tetherto/wdk-wallet-evm` y
+`@tetherto/wdk-failover-provider` como dependencias.
+
+### Un detalle que costó encontrar
+
+WDK usa `sodium-universal` para el manejo seguro de claves en memoria, que en
+Node resuelve a `sodium-native` — una extensión en C++ que no existe en React
+Native. El propio paquete ya declara la alternativa en JavaScript puro en su
+campo `browser`, pero Metro no lo lee para paquetes anidados. Se resuelve con
+cinco líneas en [`metro.config.js`](metro.config.js).
+
+---
+
+## Red y contratos
+
+Todo corre en **Ethereum Sepolia** (chain ID `11155111`).
+
+| | Dirección |
+| --- | --- |
+| USD₮ (el que acepta el paymaster de Candide) | `0xd077a400968890eacc75cdc901f0356c943e4fdb` |
+| PoolFactory | `0x6057180c135760421085621d24c4ef53d4eb65be` |
+| SocialRegistry | `0xaaac417114ff2429fb722da93179702f64417fcd` |
+| Delegación EIP-7702 | `0xe6Cae83BdE06E4c305530e199D7217f42808555B` |
+| Bundler + paymaster | Candide, `api.candide.dev/api/v3/11155111` |
+
+El USD₮ se consigue en el faucet del dashboard de Candide. **Es un token
+distinto del USDT de Aave**: tiene que ser el mismo con el que el paymaster
+cobra el gas, o el usuario necesitaría dos saldos.
+
+Los contratos están en [`../chanchito-contracts`](../chanchito-contracts), con
+46 tests.
+
+## Cómo correrlo desde cero
+
+```bash
+npm install
+cp .env.example .env     # completar RPC y project id de WalletConnect
+npm run android          # o `npm run android:usb` si el teléfono está por cable
+```
+
+Necesitás:
+
+- Node 22.18+
+- Un RPC de Sepolia (Alchemy o Infura, gratis)
+- Una API key de [Candide](https://dashboard.candide.dev) para el paymaster
+- USD₮ del faucet de Candide en la wallet que genera la app
+
+Sin las direcciones de contrato en el `.env`, la app arranca igual contra un
+backend simulado — útil para desarrollar sin red.
+
+## Cómo está armado
 
 ```
 src/
-  app/                  rutas (expo-router, file-based)
-    (tabs)/             home · buscar · mis chanchitos · perfil
-    pool/[id]/          detalle + elegir monto
-    participation/[id]/ detalle + salida anticipada + completado
-    create/             crear + compartir
-    friends/            lista + agregar
   api/
-    backend.ts          backend simulado en memoria (con latencia)
-    hooks.ts            hooks de TanStack Query
-    keys.ts             fábrica de query keys
-  components/
-    ui/                 Button · Card · Chip · ProgressBar · Screen · motion
-    chanchito-mascot.tsx  mascota SVG con 5 estados de ánimo
-  data/                 dataset y tipos
-  store/                slices de Zustand
-  theme/tokens.ts       espejo en JS de los tokens de global.css
-  global.css            tokens de diseño (@theme de Tailwind v4)
+    wdk.ts          ← la capa de firma, sobre WDK
+    contracts.ts    lecturas y escrituras de los chanchitos
+    social.ts       nombres de usuario y amistades
+    source.ts       decide entre cadena y mock
+  app/              27 pantallas (expo-router)
+  lib/money.ts      la plata, en enteros (26 pruebas)
+  lib/pool.ts       todo el texto derivado del estado
 ```
 
-## Conectar un backend real
+Dos decisiones que sostienen el resto:
 
-`src/api/backend.ts` es lo único que hay que tocar: reemplazar el cuerpo de cada
-función por un `fetch`. Los hooks, las pantallas y las invalidaciones quedan
-igual.
+**La plata nunca es un `number`.** En punto flotante `0,1 + 0,2` no da `0,3`, y
+con saldos de usuarios eso termina en descuadres imposibles de rastrear. Todo
+va en enteros de USD₮.
 
-## Correr
+**Los datos no guardan texto ya armado.** Del contrato llegan números y
+timestamps; frases como "quedan 6 días" se calculan al dibujar, así no
+envejecen.
 
-```bash
-npm start          # Metro (Expo Go o dev client)
-npm run ios
-npm run android
-npm run web
-```
+## Las reglas del producto
 
-> `lightningcss` está pinneado a `1.30.1` en `overrides`: versiones más nuevas
-> rompen la deserialización que hace `react-native-css` al compilar el CSS.
+- Todos ponen entre el mínimo y el máximo del chanchito.
+- **El chanchito no genera nada hasta llenarse.** La plata queda quieta y el
+  plazo recién arranca cuando entra el último participante.
+- Si salís antes: **recuperás tu capital completo** y resignás la ganancia.
+- El rendimiento normal se reparte **proporcional** a lo puesto.
+- Lo que resigna quien se va se reparte **en partes iguales** entre los que
+  quedan, menos un **10%** para la plataforma.
+- Si nunca se llena, cada uno retira todo **sin comisión**.
+
+Cada una de esas reglas tiene su test en `../chanchito-contracts/test`.

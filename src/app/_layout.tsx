@@ -30,7 +30,6 @@ import { AppKit, AppKitProvider } from '@reown/appkit-react-native';
 
 import { TxBanner } from '@/components/tx-banner';
 import { NetworkGuard } from '@/components/network-guard';
-import { WalletConnectBridge } from '@/components/walletconnect-bridge';
 import { appKit } from '@/lib/appkit';
 import { colors } from '@/theme/tokens';
 
@@ -121,7 +120,6 @@ export default function RootLayout() {
 
   return (
     <AppKitProvider instance={appKit}>
-      <WalletConnectBridge />
       {tree}
       <NetworkGuard />
       {/*

@@ -91,9 +91,7 @@ export async function createPool(vars: WithAccount<{ draft: PoolDraft; code: str
   return chain.createPoolOnChain(vars.draft, requireAccount(vars.account), vars.code);
 }
 
-export async function joinPool(
-  vars: WithAccount<{ poolId: string; amount: bigint; onProgress?: (s: string) => void }>,
-) {
+export async function joinPool(vars: WithAccount<{ poolId: string; amount: bigint }>) {
   if (!USING_CHAIN) {
     const { txHash, result } = await mock.joinPool({
       poolId: vars.poolId,
@@ -106,7 +104,6 @@ export async function joinPool(
     poolId: vars.poolId,
     amount: vars.amount,
     account: requireAccount(vars.account),
-    onProgress: vars.onProgress,
   });
 }
 
