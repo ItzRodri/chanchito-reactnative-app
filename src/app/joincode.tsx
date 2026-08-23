@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Pressable, Text, TextInput, View } from 'react-native';
 
 import { ChanchitoMascot } from '@/components/chanchito-mascot';
+import { QrScanner } from '@/components/qr-scanner';
 import { BackButton, Bob, Button, Screen } from '@/components/ui';
 import { useJoinByCode } from '@/api/hooks';
 import { colors } from '@/theme/tokens';
@@ -10,6 +11,7 @@ import { colors } from '@/theme/tokens';
 export default function JoinCodeScreen() {
   const [code, setCode] = useState('');
   const [error, setError] = useState(false);
+  const [scanning, setScanning] = useState(false);
   const joinByCode = useJoinByCode();
 
   function submit() {
@@ -77,6 +79,7 @@ export default function JoinCodeScreen() {
 
         <Pressable
           accessibilityRole="button"
+          onPress={() => setScanning(true)}
           className="w-full flex-row items-center justify-center gap-2.5 rounded-2xl bg-ink px-4 py-3"
           style={({ pressed }) => ({ opacity: pressed ? 0.55 : 1 })}>
           <Text className="text-[15px]">📷</Text>
@@ -85,6 +88,19 @@ export default function JoinCodeScreen() {
       </View>
 
       <Button label="Entrar al chanchito" onPress={submit} loading={joinByCode.isPending} />
+
+      <QrScanner
+        visible={scanning}
+        onClose={() => setScanning(false)}
+        onScan={(value) => {
+          // El link de invitación es "chanchito.app/j/ABC123": nos quedamos con el código.
+          const code = value.split('/').pop() ?? value;
+          setCode(code.toUpperCase().slice(0, 6));
+          setError(false);
+        }}
+        title="Escaneá el código del chanchito"
+        hint="El que te compartieron por link o QR"
+      />
     </Screen>
   );
 }

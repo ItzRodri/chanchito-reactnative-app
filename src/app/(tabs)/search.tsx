@@ -3,7 +3,7 @@ import { ActivityIndicator, FlatList, Pressable, ScrollView, Text, TextInput, Vi
 
 import { ChanchitoMascot } from '@/components/chanchito-mascot';
 import { PoolCard } from '@/components/pool-card';
-import { Chip, HardPressable, Screen } from '@/components/ui';
+import { Chip, HardPressable, Screen, useRefresh } from '@/components/ui';
 import { SearchIcon } from '@/components/tab-icons';
 import { usePoolsWithFriendsCount, useSearchResults } from '@/api/hooks';
 import { SEARCH_TAGS } from '@/data/db';
@@ -17,8 +17,10 @@ export default function SearchScreen() {
     useSearchStore();
   const plazo = usePlazoLabel();
 
-  const { results, isPending } = useSearchResults({ query, tag, onlyFriends });
+  const poolsQuery = useSearchResults({ query, tag, onlyFriends });
+  const { results, isPending } = poolsQuery;
   const withFriends = usePoolsWithFriendsCount();
+  const refreshControl = useRefresh(poolsQuery, withFriends);
 
   return (
     <Screen withTabBar>
@@ -127,6 +129,7 @@ export default function SearchScreen() {
           contentContainerClassName="gap-3 px-[18px] pb-6"
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
+          refreshControl={refreshControl}
           initialNumToRender={5}
           windowSize={7}
           removeClippedSubviews

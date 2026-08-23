@@ -28,6 +28,20 @@ export const SOCIAL_REGISTRY_ADDRESS = process.env.EXPO_PUBLIC_SOCIAL_REGISTRY_A
   | `0x${string}`
   | undefined;
 
+/**
+ * Dónde caen las comisiones de servicio.
+ *
+ * Si no está configurada, la app no cobra: es preferible no cobrar nada a
+ * mandarle la comisión a la dirección cero, que la quemaría sin aviso.
+ */
+export const TREASURY_ADDRESS = process.env.EXPO_PUBLIC_TREASURY_ADDRESS as
+  | `0x${string}`
+  | undefined;
+
+export function chargesFees(): boolean {
+  return Boolean(TREASURY_ADDRESS);
+}
+
 export function hasSocialRegistry(): boolean {
   return Boolean(SOCIAL_REGISTRY_ADDRESS);
 }

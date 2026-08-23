@@ -47,40 +47,56 @@ const BUNDLER_URL =
  */
 const MAX_FEE = 10_000_000n;
 
+/**
+ * Techo aparte para crear un chanchito.
+ *
+ * Crear no es una transferencia: **despliega un contrato**, unos 2,3 millones
+ * de gas, más de diez veces lo que cuesta un depósito. Con el techo común la
+ * operación se rechazaba siempre con "Exceeded maximum fee cost".
+ *
+ * Se sube sólo para esta operación en vez de subir el techo general: así un
+ * envío sigue protegido con $10 y no hereda un límite pensado para un
+ * despliegue.
+ */
+export const DEPLOY_MAX_FEE = 40_000_000n;
+
 export type WdkTx = {
   to: `0x${string}`;
   value?: bigint;
   data?: `0x${string}`;
 };
 
-let manager: unknown = null;
+/** Un gestor por techo de comisión: WDK lo fija al construirse. */
+const managers = new Map<bigint, unknown>();
 
 /**
  * El gestor de WDK, creado a partir de la frase semilla que la app ya guardaba
  * en el almacenamiento seguro del sistema. No se genera una wallet nueva.
  */
-async function getManager() {
-  if (manager) return manager as InstanceType<typeof WalletManagerEvm7702Gasless>;
+async function getManager(maxFee: bigint = MAX_FEE) {
+  const cached = managers.get(maxFee);
+  if (cached) return cached as InstanceType<typeof WalletManagerEvm7702Gasless>;
 
   const seed = await revealMnemonic();
   if (!seed) throw new Error('No hay wallet en este dispositivo');
 
-  manager = new WalletManagerEvm7702Gasless(seed, {
+  const created = new WalletManagerEvm7702Gasless(seed, {
     provider: RPC_URL,
     delegationAddress: DELEGATION_ADDRESS,
     bundlerUrl: BUNDLER_URL,
     // El gas se paga en el mismo token que el usuario está ahorrando.
     paymasterToken: { address: USDT_ADDRESS },
-    transferMaxFee: MAX_FEE,
-    transactionMaxFee: MAX_FEE,
+    transferMaxFee: maxFee,
+    transactionMaxFee: maxFee,
   });
 
-  return manager as InstanceType<typeof WalletManagerEvm7702Gasless>;
+  managers.set(maxFee, created);
+  return created as InstanceType<typeof WalletManagerEvm7702Gasless>;
 }
 
 /** La cuenta firmante para un índice de derivación. */
-export async function getWdkAccount(index = 0) {
-  const wallet = await getManager();
+export async function getWdkAccount(index = 0, maxFee: bigint = MAX_FEE) {
+  const wallet = await getManager(maxFee);
   return wallet.getAccount(index);
 }
 
@@ -93,8 +109,9 @@ export async function getWdkAccount(index = 0) {
 export async function sendGasless(
   txs: WdkTx | WdkTx[],
   accountIndex = 0,
+  maxFee: bigint = MAX_FEE,
 ): Promise<`0x${string}`> {
-  const account = await getWdkAccount(accountIndex);
+  const account = await getWdkAccount(accountIndex, maxFee);
   const result = await account.sendTransaction(txs as never);
   return result.hash as `0x${string}`;
 }
@@ -106,13 +123,34 @@ export async function sendGasless(
 export async function quoteGasless(
   txs: WdkTx | WdkTx[],
   accountIndex = 0,
+  maxFee: bigint = MAX_FEE,
 ): Promise<bigint> {
-  const account = await getWdkAccount(accountIndex);
+  const account = await getWdkAccount(accountIndex, maxFee);
   const quote = await account.quoteSendTransaction(txs as never);
   return BigInt((quote as { fee?: bigint }).fee ?? 0n);
 }
 
 /** Se llama al cambiar de wallet, para no reusar una semilla vieja. */
 export function resetWdk() {
-  manager = null;
+  managers.clear();
+}
+
+/**
+ * Espera a que la red incluya la operación.
+ *
+ * @dev NO sirve `waitForTransactionReceipt` de viem acá. Con ERC-4337 lo que
+ *      se envía es una UserOperation, y su hash no es el de una transacción
+ *      común: viem lo busca entre transacciones y nunca lo encuentra, así que
+ *      se queda esperando hasta rendirse aunque la operación haya salido bien.
+ *
+ *      WDK sabe resolverlo porque le pregunta al bundler.
+ */
+export async function waitForGasless(
+  hash: `0x${string}`,
+  accountIndex = 0,
+): Promise<{ success: boolean }> {
+  const account = await getWdkAccount(accountIndex);
+  const readOnly = await account.toReadOnlyAccount();
+  const receipt = await readOnly.waitForTransaction(hash as never);
+  return { success: (receipt as { success?: boolean })?.success !== false };
 }

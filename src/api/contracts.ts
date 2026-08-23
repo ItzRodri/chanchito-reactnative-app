@@ -1,10 +1,12 @@
 import { erc20Abi, poolFactoryAbi, poolVaultAbi } from './abi';
 import {
   POOL_FACTORY_ADDRESS,
+  TREASURY_ADDRESS,
   USDT_ADDRESS,
   hasContracts,
   publicClient,
 } from '@/lib/chain';
+import { sendFee } from '@/lib/fees';
 import type { Mood } from '@/components/chanchito-mascot';
 import type { Participation, Person, Pool } from '@/data/types';
 import type { Usdt } from '@/lib/money';
@@ -279,7 +281,7 @@ export { hasContracts };
 
 import { encodeFunctionData } from 'viem';
 
-import { sendGasless, type WdkTx } from './wdk';
+import { DEPLOY_MAX_FEE, sendGasless, type WdkTx, waitForGasless } from './wdk';
 import type { PoolDraft } from '@/store/draft';
 import { usdtFromWhole } from '@/lib/money';
 
@@ -342,7 +344,10 @@ export async function createPoolOnChain(
 
   const codeHex = draft.vis === 'private' ? asciiToBytes6(code) : '0x000000000000';
 
-  const txHash = await sendGasless({
+  // Crear despliega un contrato: necesita un techo de comisión mayor que el de
+  // una transferencia, o WDK lo rechaza con "Exceeded maximum fee cost".
+  const txHash = await sendGasless(
+    {
     to: requireFactory(),
     data: encodeFunctionData({
       abi: poolFactoryAbi,
@@ -361,11 +366,19 @@ export async function createPoolOnChain(
         },
       ],
     }),
-  });
+    },
+    0,
+    DEPLOY_MAX_FEE,
+  );
 
   // La dirección del chanchito nuevo se conoce recién cuando se confirma;
   // se resuelve leyendo la fábrica después del recibo.
-  await publicClient.waitForTransactionReceipt({ hash: txHash });
+  //
+  // @dev Acá NO sirve `waitForTransactionReceipt` de viem: lo que se envió es
+  //      una UserOperation y su hash no es el de una transacción común, así
+  //      que viem lo buscaría para siempre. Es el mismo motivo por el que el
+  //      resto de las escrituras usa `waitForGasless`.
+  await waitForGasless(txHash);
   const [newest] = (await publicClient.readContract({
     address: requireFactory(),
     abi: poolFactoryAbi,
@@ -423,10 +436,29 @@ export async function sendUsdt({
   amount: Usdt;
   account: `0x${string}`;
 }): Promise<ChainWrite<{ to: string; amount: Usdt }>> {
-  const txHash = await sendGasless({
-    to: USDT_ADDRESS,
-    data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [to, amount] }),
-  });
+  // El envío y la comisión viajan en la MISMA operación. Si fueran dos
+  // operaciones separadas se pagaría el gas dos veces, y podría cobrarse la
+  // comisión de un envío que después falla.
+  const calls: WdkTx[] = [
+    {
+      to: USDT_ADDRESS,
+      data: encodeFunctionData({ abi: erc20Abi, functionName: 'transfer', args: [to, amount] }),
+    },
+  ];
+
+  const fee = TREASURY_ADDRESS ? sendFee(amount) : 0n;
+  if (fee > 0n && TREASURY_ADDRESS) {
+    calls.push({
+      to: USDT_ADDRESS,
+      data: encodeFunctionData({
+        abi: erc20Abi,
+        functionName: 'transfer',
+        args: [TREASURY_ADDRESS, fee],
+      }),
+    });
+  }
+
+  const txHash = await sendGasless(calls);
 
   return { txHash, result: { to, amount } };
 }

@@ -1,8 +1,8 @@
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
 
-import { publicClient } from '@/lib/chain';
 import { useTxStore, type TxKind } from '@/store/tx';
 import { USING_CHAIN } from './source';
+import { waitForGasless } from './wdk';
 
 type WriteResult<T> = { txHash: string; result: T };
 
@@ -88,11 +88,10 @@ function confirmInBackground(id: string, hash: string, onConfirmed: () => void) 
     return;
   }
 
-  publicClient
-    .waitForTransactionReceipt({ hash: hash as `0x${string}`, timeout: 120_000 })
-    .then((receipt) => {
+  waitForGasless(hash as `0x${string}`)
+    .then(({ success }) => {
       if (!stillPending()) return;
-      if (receipt.status === 'success') {
+      if (success) {
         useTxStore.getState().confirm(id);
         onConfirmed();
       } else {

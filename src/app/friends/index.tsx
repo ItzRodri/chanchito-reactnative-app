@@ -10,7 +10,7 @@ import {
   useRejectFriendOnChain,
   useRemoveFriendOnChain,
 } from '@/api/social-hooks';
-import { Avatar, Button, HardPressable, Screen, ScreenHeader } from '@/components/ui';
+import { Avatar, Button, HardPressable, Screen, ScreenHeader, useRefresh } from '@/components/ui';
 import { pluralize } from '@/lib/format';
 import { shortAccount } from '@/lib/pool';
 import type { Mood } from '@/components/chanchito-mascot';
@@ -32,6 +32,7 @@ export default function FriendsScreen() {
   const accept = useAcceptFriendOnChain();
   const reject = useRejectFriendOnChain();
   const remove = useRemoveFriendOnChain();
+  const refreshControl = useRefresh(friends, requests, myName);
 
   if (!SOCIAL_ENABLED) {
     return (
@@ -47,7 +48,11 @@ export default function FriendsScreen() {
 
   return (
     <Screen>
-      <ScrollView contentContainerClassName="px-[18px] pb-8" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerClassName="px-[18px] pb-8"
+        showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
+      >
         <ScreenHeader title="Mis amigos" onBack={() => router.back()} className="mb-1" />
         <Text className="mb-3.5 font-body-semi text-xs text-clay">
           {pluralize(friends.data?.length ?? 0, 'amigo', 'amigos')}

@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { ActivityIndicator, FlatList, Text, View } from 'react-native';
 
-import { HardPressable, PoolAvatar, ProgressBar, Screen } from '@/components/ui';
+import { HardPressable, PoolAvatar, ProgressBar, Screen, useRefresh } from '@/components/ui';
 import { useParticipations } from '@/api/hooks';
 import { money } from '@/lib/money';
 import { participationRemainingLabel } from '@/lib/pool';
@@ -10,7 +10,9 @@ import { colors } from '@/theme/tokens';
 
 export default function MineScreen() {
   const demoAccel = useSessionStore((s) => s.demoAccel);
-  const { data, isPending } = useParticipations();
+  const participations = useParticipations();
+  const { data, isPending } = participations;
+  const refreshControl = useRefresh(participations);
 
   return (
     <Screen withTabBar>
@@ -27,6 +29,7 @@ export default function MineScreen() {
           keyExtractor={(item) => item.id}
           contentContainerClassName="gap-3.5 px-[18px] pb-6"
           showsVerticalScrollIndicator={false}
+          refreshControl={refreshControl}
           initialNumToRender={6}
           windowSize={7}
           removeClippedSubviews

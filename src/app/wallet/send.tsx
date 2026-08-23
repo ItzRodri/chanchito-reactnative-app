@@ -4,9 +4,12 @@ import { ScrollView, Text, TextInput, View } from 'react-native';
 import { getAddress, isAddress } from 'viem';
 
 import { useSendUsdt } from '@/api/hooks';
+import { useSendGasQuote } from '@/api/use-gas-quote';
 import { useUsdtBalance } from '@/api/use-balance';
+import { QrScanner } from '@/components/qr-scanner';
 import { BackButton, Button, HardPressable, Screen } from '@/components/ui';
 import { CHAIN } from '@/lib/chain';
+import { sendFee, sendTotal } from '@/lib/fees';
 import { money, usdtFromString } from '@/lib/money';
 import { shortAccount } from '@/lib/pool';
 import { colors } from '@/theme/tokens';
@@ -25,6 +28,7 @@ export default function SendScreen() {
 
   const [to, setTo] = useState('');
   const [amountText, setAmountText] = useState('');
+  const [scanning, setScanning] = useState(false);
 
   const available = balance.data ?? 0n;
 
@@ -37,9 +41,18 @@ export default function SendScreen() {
 
   const amount = useMemo(() => usdtFromString(amountText), [amountText]);
 
-  const tooMuch = amount !== null && amount > available;
+  // Se compara contra el TOTAL: si sólo se mirara el monto, un envío por el
+  // saldo exacto pasaría la validación y fallaría recién en la cadena.
+  const fee = amount === null ? 0n : sendFee(amount);
+  const total = amount === null ? 0n : sendTotal(amount);
+  const tooMuch = amount !== null && total > available;
   const canSend =
     destination.state === 'valid' && amount !== null && amount > 0n && !tooMuch;
+
+  const gasQuote = useSendGasQuote(
+    destination.state === 'valid' ? destination.address : undefined,
+    amount ?? 0n,
+  );
 
   function submit() {
     if (destination.state !== 'valid' || amount === null) return;
@@ -64,7 +77,21 @@ export default function SendScreen() {
         </Text>
 
         {/* -------------------------------- destino ------------------------- */}
-        <Text className="mb-1.5 mt-5 font-body-bold text-[11px] text-cocoa">Para</Text>
+        <View className="mb-1.5 mt-5 flex-row items-center justify-between">
+          <Text className="font-body-bold text-[11px] text-cocoa">Para</Text>
+          <HardPressable
+            onPress={() => setScanning(true)}
+            flat
+            haptic
+            hitSlop={8}
+            className="flex-row items-center gap-1.5 rounded-xl border-2 border-ink bg-paper px-2.5 py-1"
+            accessibilityRole="button"
+            accessibilityLabel="Escanear código QR"
+          >
+            <Text className="text-[11px]">📷</Text>
+            <Text className="font-display-bold text-[10px] text-ink">Escanear</Text>
+          </HardPressable>
+        </View>
         <TextInput
           value={to}
           onChangeText={setTo}
@@ -87,7 +114,11 @@ export default function SendScreen() {
         <View className="mb-1.5 mt-4 flex-row items-center justify-between">
           <Text className="font-body-bold text-[11px] text-cocoa">Cuánto</Text>
           <HardPressable
-            onPress={() => setAmountText((Number(available) / 1e6).toString())}
+            onPress={() => {
+              // Descontar la comisión: mandar el saldo entero no entraría.
+              const max = available - sendFee(available);
+              setAmountText((Number(max > 0n ? max : 0n) / 1e6).toString());
+            }}
             flat
             hitSlop={8}
             className="rounded-xl border-2 border-sand-deep px-2.5 py-1"
@@ -114,7 +145,7 @@ export default function SendScreen() {
         </View>
         {tooMuch && (
           <Text className="mt-1.5 font-body-bold text-[11px] text-coral">
-            No te alcanza: tenés {money(available)}
+            No te alcanza: con la comisión son {money(total)} y tenés {money(available)}
           </Text>
         )}
 
@@ -130,6 +161,27 @@ export default function SendScreen() {
               <Text className="font-body-semi text-xs text-mint-ink">A</Text>
               <Text className="font-display-bold text-[13px] text-ink">
                 {shortAccount(destination.address)}
+              </Text>
+            </View>
+
+            {/* El desglose completo: mostrar sólo nuestra comisión y ocultar el
+                gas haría que de la billetera desaparezca más de lo anunciado. */}
+            <View className="my-2 h-0.5 bg-ink opacity-15" />
+            <View className="flex-row items-center justify-between">
+              <Text className="font-body-semi text-xs text-mint-ink">Comisión Chanchito</Text>
+              <Text className="font-body-bold text-[13px] text-ink">{money(fee)}</Text>
+            </View>
+            <View className="mt-1 flex-row items-center justify-between">
+              <Text className="font-body-semi text-xs text-mint-ink">Red {CHAIN.name}</Text>
+              <Text className="font-body-bold text-[13px] text-ink">
+                {gasQuote.isPending ? '…' : gasQuote.data != null ? money(gasQuote.data) : '—'}
+              </Text>
+            </View>
+            <View className="my-2 h-0.5 bg-ink opacity-15" />
+            <View className="flex-row items-center justify-between">
+              <Text className="font-display-bold text-[12px] text-ink">Sale de tu billetera</Text>
+              <Text className="font-display text-base text-ink">
+                {money(total + (gasQuote.data ?? 0n))}
               </Text>
             </View>
           </View>
@@ -158,6 +210,14 @@ export default function SendScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      <QrScanner
+        visible={scanning}
+        onClose={() => setScanning(false)}
+        onScan={setTo}
+        title="Escaneá la dirección"
+        hint="Apuntá al QR que muestra la pantalla de Recibir"
+      />
     </Screen>
   );
 }

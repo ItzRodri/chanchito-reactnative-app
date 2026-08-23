@@ -5,7 +5,7 @@ import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 
 import { ChanchitoMascot } from '@/components/chanchito-mascot';
 import { BellIcon } from '@/components/tab-icons';
-import { Chip, FlatCard, HardPressable, ProgressBar, Screen } from '@/components/ui';
+import { Chip, FlatCard, HardPressable, ProgressBar, Screen, useRefresh } from '@/components/ui';
 import { useNotifications, usePools } from '@/api/hooks';
 import { money } from '@/lib/money';
 import { poolIsHot, poolMissingLabel, poolProgress, poolSeatsShort } from '@/lib/pool';
@@ -19,6 +19,7 @@ export default function HomeScreen() {
 
   const pools = usePools();
   const notifications = useNotifications();
+  const refreshControl = useRefresh(pools, notifications);
 
   // El destacado es el de mayor avance; los otros dos, los que siguen.
   // Antes estaban fijos por nombre, lo que dejaba de funcionar en cuanto los
@@ -31,7 +32,11 @@ export default function HomeScreen() {
 
   return (
     <Screen withTabBar>
-      <ScrollView contentContainerClassName="px-[18px] pb-6" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerClassName="px-[18px] pb-6"
+        showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
+      >
         <View className="mb-3.5 flex-row items-start justify-between">
           <View>
             <Text className="font-body-semi text-xs text-clay">Explorá</Text>

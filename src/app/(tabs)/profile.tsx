@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { Pressable, ScrollView, Switch, Text, View } from 'react-native';
 
 import { ChanchitoMascot, type Mood } from '@/components/chanchito-mascot';
-import { Avatar, HardPressable, Screen } from '@/components/ui';
+import { Avatar, HardPressable, Screen, useRefresh } from '@/components/ui';
 import { useProfileStats } from '@/api/hooks';
 import {
   useFriendRequestsOnChain,
@@ -59,6 +59,7 @@ export default function ProfileScreen() {
   const friends = useFriendsOnChain();
   const requests = useFriendRequestsOnChain();
   const myName = useMyUsername();
+  const refreshControl = useRefresh(balance, stats, friends, requests, myName);
 
   const requestCount = requests.data?.length ?? 0;
 
@@ -69,7 +70,11 @@ export default function ProfileScreen() {
 
   return (
     <Screen withTabBar>
-      <ScrollView contentContainerClassName="px-5 pb-6" showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerClassName="px-5 pb-6"
+        showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
+      >
         <Text className="mb-3.5 font-display text-[23px] text-ink">Perfil</Text>
 
         <View className="items-center gap-2">

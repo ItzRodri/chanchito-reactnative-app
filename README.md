@@ -139,3 +139,38 @@ envejecen.
 - Si nunca se llena, cada uno retira todo **sin comisión**.
 
 Cada una de esas reglas tiene su test en `../chanchito-contracts/test`.
+
+## Cómo gana plata Chanchito
+
+Tres fuentes, y ninguna cobra por adelantado:
+
+| | cuánto | cuándo |
+|---|---|---|
+| **Uso de la app** | $1 por chanchito | al repartir, cuando llega a la fecha |
+| **Envíos** | 0,25%, mínimo $0,05, máximo $1 | en cada envío |
+| **Salida anticipada** | 10% de lo resignado | sólo si alguien se va antes |
+
+**El cobro por chanchito completado está diseñado pero todavía no desplegado.**
+Se descuenta al repartir, nunca en una transacción aparte: cobrar $1 con una
+transacción propia costaría más de $1 de gas.
+
+La comisión de envío es un porcentaje plano con piso y techo, no una escala por
+tramos. Un escalón duro se rompe solo: si hasta $1.000 se cobrara 0,05% y de ahí
+en más 0,5%, mandar dos veces $999 saldría diez veces más barato que mandar
+$1.998 una vez. Con piso y techo la curva es continua y partir el envío nunca
+conviene — está verificado en `src/lib/fees.ts`.
+
+El envío y su comisión viajan en **una sola operación** agrupada por WDK: se
+paga el gas una vez, y no puede cobrarse la comisión de un envío que después
+falla.
+
+La pantalla de envío muestra las tres líneas —lo enviado, la comisión de
+Chanchito y el gas de la red— antes de firmar. Mostrar sólo la comisión propia
+haría que de la billetera desaparezca más de lo anunciado.
+
+### La comisión de salida no es el negocio
+
+Rinde centavos: con 100 chanchitos al año y 20 personas que se van, son unos
+$13. Existe para compensar a quien se quedó, no para financiar la plataforma.
+El 90% restante de lo resignado va **en partes iguales** a los que siguen.
+
